@@ -81,4 +81,4 @@ If you need more or less node, just change the scale number:
 
 Once cluster is up:
 * The management console can be accessed at `http://hostip:15672`
-* The HA proxy manages the load balancing automatically. it manages the connections throgh 5672.
+* The HA proxy manages the load balancing automatically. it manages the connections through 5672.
