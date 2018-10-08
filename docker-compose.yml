@@ -5,8 +5,6 @@ services:
         image: dockercloud/haproxy
         ports:
           - '5672:5672'
-        networks:
-          - dcmon-net
         volumes:
           - /var/run/docker.sock:/var/run/docker.sock
         environment:
@@ -34,6 +32,7 @@ services:
             - "9104"
             - "9105"
     rabbitmq:
+        image: rabbitmq-cluster:3.7.5-rc.1
         scale: 4
         environment:
           - CLUSTER_WITH=rabbitmq-master
