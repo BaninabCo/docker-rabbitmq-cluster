@@ -1,21 +1,51 @@
 #!/bin/bash
 
+RESULT="down"
 hostname=`hostname`
 RABBITMQ_NODENAME=${RABBITMQ_NODENAME:-rabbit}
 
+checkOpenPort() {
+
+  while [ "$RESULT" = "down" ]
+      do
+      echo "----------================================-----------"
+      echo "Waiting for $1 : $2 to come up"
+      sleep 5s
+      echo "Check to see if it's up"
+      (echo > /dev/tcp/$1/$2) >/dev/null 2>&1 && RESULT="up" || RESULT="down"
+      echo "$1 : $2 is $RESULT"
+  done
+
+  RESULT="down"
+}
 if [ -z "$CLUSTER_WITH" -o "$CLUSTER_WITH" = "$hostname" ]; then
   echo "Running as single server"
-  rabbitmq-server
+  rm -rf /var/lib/rabbitmq/mnesia/*
+  mkdir -p /var/log/rabbitmq/log/
+  nohup rabbitmq-server > /var/log/rabbitmq/log/server.log 2>&1 &
+  checkOpenPort localhost 5672
 else
   echo "Running as clustered server"
-  /usr/sbin/rabbitmq-server -detached
+  checkOpenPort $CLUSTER_WITH 5672
+  rm -rf  /var/log/rabbitmq/*
+  rm -rf /var/lib/rabbitmq/mnesia/*
+  mkdir -p /var/log/rabbitmq/log/
+  nohup /usr/sbin/rabbitmq-server -detached > /var/log/rabbitmq/log/server.log 2>&1 &
+  checkOpenPort localhost 5672
+  echo "rabbitmqctl stop_app"
   rabbitmqctl stop_app
-
   echo "Joining cluster $CLUSTER_WITH"
   rabbitmqctl join_cluster ${ENABLE_RAM:+--ram} $RABBITMQ_NODENAME@$CLUSTER_WITH
 
+  echo "rabbitmqctl start_app"
   rabbitmqctl start_app
 
-  # Tail to keep the a foreground process active..
-  tail -f /var/log/rabbitmq/*
 fi
+if [ ! -z "$RABBITMQ_DEFAULT_USER" ] && [ ! -z "$RABBITMQ_DEFAULT_PASS" ]; then
+  echo "Adding user: $RABBITMQ_DEFAULT_USER"
+  rabbitmqctl add_user $RABBITMQ_DEFAULT_USER $RABBITMQ_DEFAULT_PASS
+  rabbitmqctl set_user_tags $RABBITMQ_DEFAULT_USER administrator
+  rabbitmqctl set_permissions -p / $RABBITMQ_DEFAULT_USER ".*" ".*" ".*"
+fi
+  #Tail to keep the a foreground process active..
+tail -f /var/log/rabbitmq/log/*.log
